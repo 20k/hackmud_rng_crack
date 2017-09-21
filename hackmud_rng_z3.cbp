@@ -36,7 +36,6 @@
 		<Linker>
 			<Add option="-lz3" />
 			<Add option="-lsfml-system" />
-			<Add library="C:/msys64/mingw64/x86_64-w64-mingw32/lib/libz3.a" />
 		</Linker>
 		<Unit filename="main.cpp" />
 		<Extensions>
