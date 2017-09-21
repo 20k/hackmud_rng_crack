@@ -4,60 +4,9 @@
 #include <vector>
 #include <math.h>
 #include <stdint.h>
+#include <SFML/System/Clock.hpp>
 
 using namespace z3;
-
-/*def sym_xs128p(slvr, sym_state0, sym_state1, generated):
-    s1 = sym_state0
-    s0 = sym_state1
-    s1 ^= (s1 << 23)
-    s1 ^= LShR(s1, 17)
-    s1 ^= s0
-    s1 ^= LShR(s0, 26)
-    sym_state0 = sym_state1
-    sym_state1 = s1
-    calc = (sym_state0 + sym_state1)
-
-    condition = Bool('c%d' % int(generated * random.random()))
-
-    impl = Implies(condition, (calc & 0xFFFFFFFFFFFFF) == int(generated))
-
-    slvr.add(impl)
-    return sym_state0, sym_state1, [condition]*/
-
-
-/*
-    dubs = [0.71818029236637937, 0.13145321474034222, 0.22632317820137171]
-
-    print dubs
-
-    # from the doubles, generate known piece of the original uint64
-    generated = []
-    for idx in xrange(len(dubs)):
-        recovered = struct.unpack('<Q', struct.pack('d', dubs[idx] + 1))[0] & 0xFFFFFFFFFFFFF
-        generated.append(recovered)
-
-    # setup symbolic state for xorshift128+
-    ostate0, ostate1 = BitVecs('ostate0 ostate1', 64)
-    sym_state0 = ostate0
-    sym_state1 = ostate1
-    slvr = Solver()
-    conditions = []
-
-    # run symbolic xorshift128+ algorithm for three iterations
-    # using the recovered numbers as constraints
-    for ea in xrange(len(dubs)):
-        sym_state0, sym_state1, ret_conditions = sym_xs128p(slvr, sym_state0, sym_state1, generated[ea])
-        conditions += ret_conditions
-
-    print "built_conditions"
-
-    if slvr.check(conditions) == sat:
-        # get a solved state
-        m = slvr.model()
-        state0 = m[ostate0].as_long()
-        state1 = m[ostate1].as_long()*/
-
 
 double chrome_2(uint64_t v)
 {
@@ -206,6 +155,8 @@ void test()
 
 int main()
 {
+    sf::Clock clk;
+
     //test();
 
     //double dubs[] = {0.71818029236637937, 0.13145321474034222, 0.22632317820137171};
@@ -291,7 +242,24 @@ int main()
 
     solver s(c);
 
-    for(int i=0; i<ndubs; i++)
+    /*for(int i=0; i<ndubs; i++)
+    {
+        auto e2 = c.bv_val((unsigned long long)converted[i], 64);
+
+        if(i % 2 == 1)
+            sym_xs128p(c, s0b, s1b, s0, s1, s, t23, t17, t26, e2, cpc);
+        else
+            sym_xs128p(c, s0, s1, s0b, s1b, s, t23, t17, t26, e2, cpc);
+
+
+        std::cout << converted[i] << std::endl;
+    }*/
+
+    expr calc = s0 + s1;
+
+    s.add((calc & cpc) == c.bv_val((unsigned long long)converted[0], 64));
+
+    for(int i=1; i<ndubs; i++)
     {
         auto e2 = c.bv_val((unsigned long long)converted[i], 64);
 
@@ -410,6 +378,8 @@ int main()
 
         //std::cout << s << std::endl;
     }
+
+    std::cout << "Time " << clk.getElapsedTime().asMicroseconds() / 1000. / 1000. << std::endl;
 
     //f1 101110001100001100000010111111000000010011000100101
     //f2 101110001100001100000001000000111010101101000010110
