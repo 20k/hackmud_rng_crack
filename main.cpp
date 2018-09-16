@@ -254,8 +254,8 @@ void real_nan_cracker()
 {
     //test_nan_cracker();
 
-    #if 1
-    uint64_t unknown_s0 = 12332427344;
+    #if 0
+    uint64_t unknown_s0 = 1233242734;
     uint64_t unknown_s1 = 65745754674567;
 
     //uint64_t unknown_s1 = nan_value_uint64_t();
@@ -263,7 +263,7 @@ void real_nan_cracker()
 
     //double test_against = chrome(unknown_s0 + unknown_s1);
 
-    for(uint64_t kk = 0; kk < 1000000; kk++)
+    for(uint64_t i = 0; i < 1000000; i++)
     {
         ///so we assume that either of these are NAN + something
         auto [s0, s1, gen] = xorshift128plus_exp(unknown_s0, unknown_s1);
@@ -317,8 +317,6 @@ void real_nan_cracker()
                 std::cout << "b01 " << b01 << " b11 " << b11 << std::endl;
                 std::cout << "est " << unknown_s0 << " est " << unknown_s1 << std::endl;
 
-                std::cout << "found at " << kk << std::endl;
-
                 exit(0);
             }
 
@@ -344,36 +342,46 @@ void real_nan_cracker()
     }
     #endif // 0
 
+    uint64_t s10 = nan_value_uint64_t();
+
     ///can't get a full attack working yet, no worries
-    /*state_cache cache;
-    cache.set_seeds(1233242734, 23465324563456);
+
+    ///i'm getting boned by the backwards cache thing
+    state_cache cache;
+    cache.set_seeds(1233242734, 65745754674567);
 
     double test_against = cache.get_next();
 
-    for(uint64_t i=0; i < 1000000; i++)
+    for(uint64_t kk=0; kk < 10000000; kk++)
     {
         ///so
         double next_value = cache.get_next();
-
-        ///we assume
-        uint64_t s10 = NAN;
 
         uint64_t testing_value = iv_chrome(next_value);
 
         uint64_t to_search = pow(2, 12);
 
-        uint64_t known_bits = testing_value - s10;
+        uint64_t known_bits_s11 = (testing_value - s10) & ((uint64_t)pow(2, 52) - 1);
+
+        /*if(cache.is_bugged())
+        {
+            std::cout << "Buggy AF\n";
+
+            auto [hack_0, hack_1] = cache.get_state();
+
+            std::cout << std::hex << "s0 " << hack_0 << " s1 " << hack_1 << std::endl;
+        }*/
 
         //double test_against = cache.get_next();
 
         for(uint64_t i=0; i < to_search; ++i)
         {
             uint64_t top_bits = i;
-            uint64_t current_bits = known_bits | (top_bits << 52);
+            uint64_t current_bits = known_bits_s11 | (top_bits << (64 - 12));
 
-            uint64_t guess_sum = current_bits;
+            uint64_t guess_s11 = current_bits;
 
-            uint64_t guess_s11 = guess_sum - s10;
+            //uint64_t guess_s11 = guess_sum - s10;
 
             auto [s03, s13, test_gen] = xorshift128plus_exp(s10, guess_s11);
 
@@ -385,11 +393,13 @@ void real_nan_cracker()
                 auto [b01, b11, d1] = xs128p_backward(b00, b10);
 
                 std::cout << "b01 " << b01 << " b11 " << b11 << std::endl;
+
+                exit(0);
             }
         }
 
         test_against = next_value;
-    }*/
+    }
 
     exit(0);
 }
