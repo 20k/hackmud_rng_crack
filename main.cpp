@@ -161,7 +161,9 @@ void test_nan_cracker()
     ///firstly need to generate a seed sequence where one seed is nan
 
     uint64_t s00 = 12341233245098;
-    uint64_t s10 = NAN; ///chosen completely at random
+    uint64_t s10 = nan_value_uint64_t(); ///chosen completely at random
+
+    std::cout << std::hex << "s10 " << s10 << std::endl;
 
     /*state_cache cache;
     cache.set_seeds(s00, s01);
@@ -177,7 +179,7 @@ void test_nan_cracker()
 
     ///ok simple test
 
-    uint64_t recovered_s11 = gen - s10;
+    /*uint64_t recovered_s11 = gen - s10;
 
     assert(recovered_s11 == s11);
 
@@ -188,7 +190,14 @@ void test_nan_cracker()
     ///as we lose the rest in the output
     ///subtraction LUCKILY AS FUCK goes from low bits to high bits, so we can get the lowest 52 bits of s11
 
-    uint64_t known_bits = recovered_s11 & ((uint64_t)pow(2, 52) - 1);
+    uint64_t known_bits = recovered_s11 & ((uint64_t)pow(2, 52) - 1);*/
+
+    ///NAN + something
+    uint64_t unknown_sum = iv_chrome(chrome(gen));
+    ///make a guess at s11
+    uint64_t known_bits_s11 = unknown_sum - s10;
+
+    //std::cout << std::hex << "known " << unknown_sum << std::endl;
 
     ///ok so
     ///top twelve bits please
@@ -198,9 +207,9 @@ void test_nan_cracker()
     for(uint64_t i=0; i < to_search; ++i)
     {
         uint64_t top_bits = i;
-        uint64_t current_bits = known_bits | (top_bits << 52);
+        uint64_t current_bits = known_bits_s11 | (top_bits << (64 - 12));
 
-        uint64_t guess_sum = current_bits;
+        uint64_t guess_s11 = current_bits;
 
         ///cheating
         /*if(current_bits == s11)
@@ -214,7 +223,7 @@ void test_nan_cracker()
         ///then lets run the genny forwards (?) and see if its the correct value
         ///could do either forwards or backwards here
 
-        uint64_t guess_s11 = guess_sum - s10;
+        //uint64_t guess_s11 = guess_sum - s10;
 
         //so we know
         ///s01 == NAN
@@ -241,9 +250,153 @@ void test_nan_cracker()
     exit(0);
 }
 
+void real_nan_cracker()
+{
+    //test_nan_cracker();
+
+    #if 1
+    uint64_t unknown_s0 = 12332427344;
+    uint64_t unknown_s1 = 65745754674567;
+
+    //uint64_t unknown_s1 = nan_value_uint64_t();
+    uint64_t s10 = nan_value_uint64_t();
+
+    //double test_against = chrome(unknown_s0 + unknown_s1);
+
+    for(uint64_t kk = 0; kk < 1000000; kk++)
+    {
+        ///so we assume that either of these are NAN + something
+        auto [s0, s1, gen] = xorshift128plus_exp(unknown_s0, unknown_s1);
+        auto [s01, s11, gen2] = xorshift128plus_exp(s0, s1);
+
+        double test_against = chrome(gen2);
+
+        ///we assume this is NAN + something
+        uint64_t testing_value = iv_chrome(chrome(gen));
+
+        uint64_t to_search = pow(2, 12);
+
+        ///guess
+        uint64_t known_bits_s11 = testing_value - s10;
+
+        for(uint64_t i=0; i < to_search; ++i)
+        {
+            uint64_t top_bits = i;
+            uint64_t current_bits = known_bits_s11 | (top_bits << 52);
+
+            uint64_t guess_s11 = current_bits;
+
+            ///cheating
+            /*if(current_bits == s11)
+            {
+                std::cout <<" found " << current_bits << std::endl;
+            }*/
+
+            ///so
+            ///we assume that current bits is s10
+            ///we make a guess at s11
+            ///then lets run the genny forwards (?) and see if its the correct value
+            ///could do either forwards or backwards here
+
+            //uint64_t guess_s11 = guess_sum - s10;
+
+            //so we know
+            ///s01 == NAN
+            ///and we have a guess at s11
+            ///so lets xorshift our way forwards
+
+            auto [s03, s13, test_gen] = xorshift128plus_exp(s10, guess_s11);
+
+            if(chrome(test_gen) == test_against)
+            {
+                std::cout << "Found2\n";
+
+                auto [b00, b10, d0] = xs128p_backward(s03, s13);
+                auto [b01, b11, d1] = xs128p_backward(b00, b10);
+
+                std::cout << "b01 " << b01 << " b11 " << b11 << std::endl;
+                std::cout << "est " << unknown_s0 << " est " << unknown_s1 << std::endl;
+
+                std::cout << "found at " << kk << std::endl;
+
+                exit(0);
+            }
+
+        }
+
+        unknown_s0 = s01;
+        unknown_s1 = s11;
+
+        unknown_s0 = float_mimic::nan_ify(unknown_s0);
+        unknown_s1 = float_mimic::nan_ify(unknown_s1);
+
+        if(float_mimic::is_nan(unknown_s1))
+        {
+            /*std::cout << "nanny\n";
+
+            std::cout << std::hex << "unk " << unknown_s1 << std::endl;
+            std::cout << std::hex << "ass " << s10 << std::endl;*/
+
+            assert(unknown_s1 == s10);
+        }
+
+        //double next_value =
+    }
+    #endif // 0
+
+    ///can't get a full attack working yet, no worries
+    /*state_cache cache;
+    cache.set_seeds(1233242734, 23465324563456);
+
+    double test_against = cache.get_next();
+
+    for(uint64_t i=0; i < 1000000; i++)
+    {
+        ///so
+        double next_value = cache.get_next();
+
+        ///we assume
+        uint64_t s10 = NAN;
+
+        uint64_t testing_value = iv_chrome(next_value);
+
+        uint64_t to_search = pow(2, 12);
+
+        uint64_t known_bits = testing_value - s10;
+
+        //double test_against = cache.get_next();
+
+        for(uint64_t i=0; i < to_search; ++i)
+        {
+            uint64_t top_bits = i;
+            uint64_t current_bits = known_bits | (top_bits << 52);
+
+            uint64_t guess_sum = current_bits;
+
+            uint64_t guess_s11 = guess_sum - s10;
+
+            auto [s03, s13, test_gen] = xorshift128plus_exp(s10, guess_s11);
+
+            if(chrome(test_gen) == test_against)
+            {
+                std::cout << "Found\n";
+
+                auto [b00, b10, d0] = xs128p_backward(s03, s13);
+                auto [b01, b11, d1] = xs128p_backward(b00, b10);
+
+                std::cout << "b01 " << b01 << " b11 " << b11 << std::endl;
+            }
+        }
+
+        test_against = next_value;
+    }*/
+
+    exit(0);
+}
+
 int main()
 {
-    test_nan_cracker();
+    real_nan_cracker();
 
     sf::Clock clk;
 
