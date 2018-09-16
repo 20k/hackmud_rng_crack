@@ -352,6 +352,8 @@ void real_nan_cracker()
 
     double test_against = cache.get_next();
 
+    bool was_bugged = false;
+
     for(uint64_t kk=0; kk < 10000000; kk++)
     {
         ///so
@@ -363,14 +365,19 @@ void real_nan_cracker()
 
         uint64_t known_bits_s11 = (testing_value - s10) & ((uint64_t)pow(2, 52) - 1);
 
-        /*if(cache.is_bugged())
+        if(cache.is_bugged())
         {
             std::cout << "Buggy AF\n";
 
             auto [hack_0, hack_1] = cache.get_state();
 
             std::cout << std::hex << "s0 " << hack_0 << " s1 " << hack_1 << std::endl;
-        }*/
+
+            was_bugged = true;
+        }
+
+        /*if(was_bugged)
+        std::cout <<" hi there " << std::endl;*/
 
         //double test_against = cache.get_next();
 
@@ -383,18 +390,33 @@ void real_nan_cracker()
 
             //uint64_t guess_s11 = guess_sum - s10;
 
-            auto [s03, s13, test_gen] = xorshift128plus_exp(s10, guess_s11);
+            //double test_type2 = chrome(s10 + guess_s11);
 
-            if(chrome(test_gen) == test_against)
+            //double test_gen = chrome(s10 + guess_s11);
+
+            //if(chrome(test_gen) == test_against)
+            //if(test_type2 == next_value)
             {
-                std::cout << "Found\n";
+                auto [s03, s13, test_gen] = xorshift128plus_exp(s10, guess_s11);
 
-                auto [b00, b10, d0] = xs128p_backward(s03, s13);
-                auto [b01, b11, d1] = xs128p_backward(b00, b10);
+                if(chrome(test_gen) == test_against)
+                {
+                    std::cout << "Found\n";
 
-                std::cout << "b01 " << b01 << " b11 " << b11 << std::endl;
+                    auto [b00, b10, d0] = xs128p_backward(s03, s13);
+                    auto [b01, b11, d1] = xs128p_backward(b00, b10);
 
-                exit(0);
+                    //auto [b01, b11, d1] = xs128p_backward(s10, guess_s11);
+
+                    std::cout << std::hex << "b01 " << b01 << " b11 " << b11 << std::endl;
+
+                    ///this is incorrect because the bugged states are used to generate the *next* round of values, not the current round
+                    /*auto [hack_0, hack_1] = cache.get_state();
+
+                    std::cout << std::hex << "real seeds b01 " << hack_0 << " b11 " << hack_1 << std::endl;*/
+
+                    exit(0);
+                }
             }
         }
 
