@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include <SFML/System/Clock.hpp>
 
+#include "../hackmud_rng_z3_dedicated/state_cache.hpp"
+
 using namespace z3;
 
 double chrome_2(uint64_t v)
@@ -16,13 +18,6 @@ double chrome_2(uint64_t v)
     uint64_t random = ((v) & kMantissaMask) | kExponentBits;
 
     return (*(double*)&random) - 1;
-}
-
-double chrome(uint64_t v)
-{
-    uint64_t up = ((v & ((1ull << 52) - 1)) | 0x3FF0000000000000);
-
-    return (*(double*)&up) -  1.0;
 }
 
 uint64_t iv_chrome(double v)
@@ -108,11 +103,16 @@ void sym_xs128p(context& c, expr& sym_0, expr& sym_1, expr& sout0, expr& sout1, 
     ///s1 ^= s1 >> 17
     s1 = s1 ^ to_expr(s1.ctx(), Z3_mk_bvlshr(s1.ctx(), s1, t17));
 
+    //s1 = s1 ^ (s1 << 23);
+    //s1 = s1 ^ (s1 >> 17);
+
     ///s1 ^= s0
     s1 = s1 ^ s0;
 
     ///s1 ^= s0 >> 26
     s1 = s1 ^ to_expr(s1.ctx(), Z3_mk_bvlshr( s1.ctx(), s0, t26));
+
+    //s1 = s1 ^ (s0 >> 26);
 
     sout0 = s0;
     sout1 = s1;
@@ -153,8 +153,98 @@ void test()
     std::cout << "x+y = " << m.eval(x+y) << "\n";
 }
 
+#include <algorithm>
+
+void test_nan_cracker()
+{
+    ///ok
+    ///firstly need to generate a seed sequence where one seed is nan
+
+    uint64_t s00 = 12341233245098;
+    uint64_t s10 = NAN; ///chosen completely at random
+
+    /*state_cache cache;
+    cache.set_seeds(s00, s01);
+
+    std::vector<double> output{cache.get_next()};*/
+
+    auto [s01, s11, gen] = xorshift128plus_exp(s00, s10);
+    auto [s02, s12, gen2] = xorshift128plus_exp(s01, s11);
+
+    double test_against = chrome(gen2);
+
+    //std::cout << "s01 " << s01 << " s11 " << s11 << std::endl;
+
+    ///ok simple test
+
+    uint64_t recovered_s11 = gen - s10;
+
+    assert(recovered_s11 == s11);
+
+    std::cout << recovered_s11 << std::endl;
+
+    ///ok so
+    ///we actually only have the lowest 52 bits of gen
+    ///as we lose the rest in the output
+    ///subtraction LUCKILY AS FUCK goes from low bits to high bits, so we can get the lowest 52 bits of s11
+
+    uint64_t known_bits = recovered_s11 & ((uint64_t)pow(2, 52) - 1);
+
+    ///ok so
+    ///top twelve bits please
+
+    uint64_t to_search = pow(2, 12);
+
+    for(uint64_t i=0; i < to_search; ++i)
+    {
+        uint64_t top_bits = i;
+        uint64_t current_bits = known_bits | (top_bits << 52);
+
+        uint64_t guess_sum = current_bits;
+
+        ///cheating
+        /*if(current_bits == s11)
+        {
+            std::cout <<" found " << current_bits << std::endl;
+        }*/
+
+        ///so
+        ///we assume that current bits is s10
+        ///we make a guess at s11
+        ///then lets run the genny forwards (?) and see if its the correct value
+        ///could do either forwards or backwards here
+
+        uint64_t guess_s11 = guess_sum - s10;
+
+        //so we know
+        ///s01 == NAN
+        ///and we have a guess at s11
+        ///so lets xorshift our way forwards
+
+        auto [s03, s13, test_gen] = xorshift128plus_exp(s10, guess_s11);
+
+        if(chrome(test_gen) == test_against)
+        {
+            std::cout << "Found\n";
+
+            auto [b00, b10, d0] = xs128p_backward(s03, s13);
+            auto [b01, b11, d1] = xs128p_backward(b00, b10);
+
+            std::cout << "b01 " << b01 << " b11 " << b11 << std::endl;
+        }
+    }
+
+    /*auto nval = NAN;
+    uint64_t val = *reinterpret_cast<const uint64_t*>(&nval);;
+    std::cout << std::hex << val << std::endl;*/
+
+    exit(0);
+}
+
 int main()
 {
+    test_nan_cracker();
+
     sf::Clock clk;
 
     //test();
@@ -204,7 +294,17 @@ int main()
 
     ///0.87680113501854894942 0.52770718623711920792 0.23358886399449940718 0.43543085194042063790 0.63940280107389257935
 
-    double dubs[] = {0.63940280107389257935, 0.43543085194042063790, 0.23358886399449940718};
+    //double dubs[] = {0.63940280107389257935, 0.43543085194042063790, 0.23358886399449940718};
+
+    //double dubs[] = {0.86499907460340796916, 0.74512964194153452624, 0.23871347953334209890};
+
+    //double dubs[] = { 0.3066468016085557302,0.4665246685056096965,0.3307010080047498857 };
+
+    double dubs[] = {0.33318669405189816, 0.8538841651126938, 0.09799326236247974};
+
+    //double dubs[] = {0.09799326236247974, 0.8538841651126938, 0.33318669405189816};
+
+    //std::reverse(std::begin(dubs), std::end(dubs));
 
 
     int ndubs = sizeof(dubs) / sizeof(double);
@@ -226,6 +326,8 @@ int main()
     uint64_t cp = 0xFFFFFFFFFFFFF;
 
     expr cpc = c.bv_val((unsigned long long)cp, 64);
+
+    //expr cpc = c.bv_const("e4", 64);
 
     std::vector<uint64_t> converted;
 
@@ -257,17 +359,27 @@ int main()
 
     expr calc = s0 + s1;
 
+    expr cv_1 = c.bv_const("e3", 64);
+
+    //s.add((calc & cpc) == cv_1);
+
     s.add((calc & cpc) == c.bv_val((unsigned long long)converted[0], 64));
 
     for(int i=1; i<ndubs; i++)
     {
         auto e2 = c.bv_val((unsigned long long)converted[i], 64);
 
-        if(i % 2 == 1)
+        //expr e2 = c.bv_const(("e2" + std::to_string(i)).c_str(), 64);
+
+        /*if(i % 2 == 1)
             sym_xs128p(c, s0b, s1b, s0, s1, s, t23, t17, t26, e2, cpc);
         else
-            sym_xs128p(c, s0, s1, s0b, s1b, s, t23, t17, t26, e2, cpc);
+            sym_xs128p(c, s0, s1, s0b, s1b, s, t23, t17, t26, e2, cpc);*/
 
+        sym_xs128p(c, s0b, s1b, s0, s1, s, t23, t17, t26, e2, cpc);
+
+        std::swap(s0b, s0);
+        std::swap(s1b, s1);
 
         std::cout << converted[i] << std::endl;
     }
@@ -297,6 +409,8 @@ int main()
 
         model m = s.get_model();
 
+        std::cout << "MODEL " << s << std::endl;
+
         func_decl d0 = m.get_const_decl(0);
         func_decl d1 = m.get_const_decl(1);
 
@@ -314,11 +428,11 @@ int main()
         std::cout << d0 << std::endl;
         std::cout << d1 << std::endl;
 
-        std::cout << e1 << std::endl;
-        std::cout << e2 << std::endl;
+        std::cout << "e1 " << e1 << std::endl;
+        std::cout << "e2 " << e2 << std::endl;
 
-        std::cout << s0 << std::endl;
-        std::cout << s1 << std::endl;
+        std::cout << "s0 " << s0 << std::endl;
+        std::cout << "s1 " << s1 << std::endl;
 
         std::cout << std::hex << s0 << std::endl;
         std::cout << std::hex << s1 << std::endl;
@@ -328,13 +442,17 @@ int main()
 
         std::cout.precision(20);
 
-        for(int i=0; i<5; i++)
+        for(int i=0; i<15; i++)
         {
             uint64_t res = xorshift128plus();
 
             double d = chrome(res);
 
             std::cout << d << std::endl;
+
+            char c = d * 26 + 'a';
+
+            std::cout << *(uint64_t*)&d << std::endl;
         }
 
         for(int i=0; i<0; i++)
@@ -342,6 +460,7 @@ int main()
             uint64_t res = xorshift128plus();
 
             double d = chrome(res);
+
 
             //bool is_eq = d == check_array[i];
 
