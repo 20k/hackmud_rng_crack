@@ -250,6 +250,16 @@ void test_nan_cracker()
     exit(0);
 }
 
+void print_js_compat(uint64_t in)
+{
+    uint32_t high = (in >> 32);
+    uint32_t lo = in;
+
+    std::cout << "[1] " << lo << " [0] " << high << " ";
+}
+
+#include <iomanip>
+
 void real_nan_cracker()
 {
     //test_nan_cracker();
@@ -351,6 +361,9 @@ void real_nan_cracker()
     cache.set_seeds(1233242734, 65745754674567);
 
     double test_against = cache.get_next();
+    uint64_t iv_test = iv_chrome(test_against);
+
+    //std::cout << std::setprecision(20) << "fn " << test_against << std::endl;
 
     bool was_bugged = false;
 
@@ -359,11 +372,15 @@ void real_nan_cracker()
         ///so
         double next_value = cache.get_next();
 
+        //std::cout << std::setprecision(20) << "next " << next_value << std::endl;
+
         uint64_t testing_value = iv_chrome(next_value);
 
         uint64_t to_search = pow(2, 12);
 
         uint64_t known_bits_s11 = (testing_value - s10) & ((uint64_t)pow(2, 52) - 1);
+
+        //print_js_compat(known_bits_s11);
 
         if(cache.is_bugged())
         {
@@ -371,7 +388,7 @@ void real_nan_cracker()
 
             auto [hack_0, hack_1] = cache.get_state();
 
-            std::cout << std::hex << "s0 " << hack_0 << " s1 " << hack_1 << std::endl;
+            std::cout << "s0 " << hack_0 << " s1 " << hack_1 << std::endl;
 
             was_bugged = true;
         }
@@ -388,47 +405,185 @@ void real_nan_cracker()
 
             uint64_t guess_s11 = current_bits;
 
-            //uint64_t guess_s11 = guess_sum - s10;
-
-            //double test_type2 = chrome(s10 + guess_s11);
-
-            //double test_gen = chrome(s10 + guess_s11);
+            auto [s03, s13, test_gen] = xorshift128plus_exp(s10, guess_s11);
 
             //if(chrome(test_gen) == test_against)
-            //if(test_type2 == next_value)
+            if((test_gen & 0xFFFFFFFFFFFFF) == iv_test)
             {
-                auto [s03, s13, test_gen] = xorshift128plus_exp(s10, guess_s11);
+                std::cout << "Found3\n";
 
-                if(chrome(test_gen) == test_against)
-                {
-                    std::cout << "Found\n";
+                auto [b00, b10, d0] = xs128p_backward(s03, s13);
+                auto [b01, b11, d1] = xs128p_backward(b00, b10);
 
-                    auto [b00, b10, d0] = xs128p_backward(s03, s13);
-                    auto [b01, b11, d1] = xs128p_backward(b00, b10);
+                //auto [b01, b11, d1] = xs128p_backward(s10, guess_s11);
 
-                    //auto [b01, b11, d1] = xs128p_backward(s10, guess_s11);
+                std::cout << "b01 " << b01 << " b11 " << b11 << std::endl;
 
-                    std::cout << std::hex << "b01 " << b01 << " b11 " << b11 << std::endl;
+                std::cout << "after " << kk << std::endl;
 
-                    ///this is incorrect because the bugged states are used to generate the *next* round of values, not the current round
-                    /*auto [hack_0, hack_1] = cache.get_state();
+                //std::cout << "next " << next_value << " test " << test_against << std::endl;
 
-                    std::cout << std::hex << "real seeds b01 " << hack_0 << " b11 " << hack_1 << std::endl;*/
+                ///this is incorrect because the bugged states are used to generate the *next* round of values, not the current round
+                /*auto [hack_0, hack_1] = cache.get_state();
 
-                    exit(0);
-                }
+                std::cout << std::hex << "real seeds b01 " << hack_0 << " b11 " << hack_1 << std::endl;*/
+
+                exit(0);
             }
         }
 
         test_against = next_value;
+        iv_test = iv_chrome(test_against);
     }
+
+    exit(0);
+}
+
+void js_compat_test()
+{
+    /*uint64_t s0 = 123432;
+    uint64_t s1 = 5435345;
+
+    auto [ds0, ds1, gen] = xorshift128plus_exp(s0, s1);
+
+    std::cout << "state " << ds0 << " " << ds1 << " g " << gen << std::endl;
+
+    print_js_compat(ds0);
+    print_js_compat(ds1);
+    print_js_compat(gen);*/
+
+    uint64_t val_1 = 0xF0F00F0FF0F00F0F;
+    uint64_t val_2 = 0x1234566543123479;
+
+    /*print_js_compat(val_1);
+    printf("\n");
+
+    print_js_compat(val_2);
+    printf("\n");*/
+
+    /*print_js_compat(val_2 >> 23);
+    printf("\n");
+
+    print_js_compat(val_2 << 17);
+    printf("\n");
+
+    print_js_compat(val_2 >> 26);*/
+
+    uint64_t s0 = 1234344442;
+    uint64_t s1 = 5435345;
+
+    auto [ds0, ds1, gen] = xorshift128plus_exp(s0, s1);
+    auto [ds2, ds3, gen2] = xorshift128plus_exp(ds0, ds1);
+
+    //std::cout << "state " << ds0 << " " << ds1 << " g " << gen << std::endl;
+
+    /*print_js_compat(ds0);
+    printf("\n");
+    print_js_compat(ds1);
+    printf("\n");
+    print_js_compat(gen);
+    printf("\n");*/
+
+    /*print_js_compat(ds2);
+    printf("\n");
+    print_js_compat(ds3);
+    printf("\n");
+    print_js_compat(gen2);
+    printf("\n");*/
+
+    double test_double = 567;
+
+    uint64_t interpret = *(uint64_t*)&test_double;
+
+    //print_js_compat(interpret);
+
+    uint64_t constant = 0xFFFFFFFFFFFFF;
+
+    //print_js_compat(constant);
+
+    //print_js_compat(iv_chrome(12345432.3));
+
+
+    //print_js_compat(val_2 - val_1);
+
+    //print_js_compat(nan_value_uint64_t());
+
+    //print_js_compat((uint64_t)pow(2, 52)-1);
+
+    static const uint64_t kExponentBits = uint64_t{0x3FF0000000000000};
+    static const uint64_t kMantissaMask = uint64_t{0x000FFFFFFFFFFFFF};
+
+    //print_js_compat(kExponentBits);
+    //print_js_compat(kMantissaMask);
+
+    uint64_t test_value = 234234;
+
+    std::cout << *(double*)&test_value << std::endl;
+
+    //print_js_compat(nan_value_uint64_t());
+
+    //print_js_compat(0xFFFFFFFFFFFFF);
+
+    std::cout << "c1 " <<  (1 << 26) - 1 << std::endl;
+    std::cout << "c2 " <<  (1 << 17) - 1 << std::endl;
+
+    std::cout << "c3 " << (uint32_t)((uint64_t)2146959360 << 23) << std::endl;
+
+    std::cout << "c4 " << (2146959360 >> 17) << std::endl;
+
+    uint32_t val = ((2146959360 & ((1 << 17) - 1)) << (32 - 17)) | (0 >> 17);
+
+    std::cout << "c5 " << val << std::endl;
+
+    uint32_t val2 = ((1 << 26) - 1);
+
+    std::cout << "c6 " << val2 << std::endl;
+
+    exit(0);
+}
+
+void debug_js_bugs()
+{
+
+    /*0.06705782539107319 0.06705782539107319 seeds: 707146439 1283529280 2060899587 1211394217
+    0.6791105690334158 0.6791096153590994 seeds: 2060899587 1211394217 986081609 614487976*/
+
+    /*
+        -123642795 -503266754 312770748 918166372
+        1923795586 -108796326 -123642795 -503266754*/
+
+    uint32_t s0_lo = -123642795;
+    uint32_t s0_hi = -503266754;
+    uint32_t s1_lo = 312770748;
+    uint32_t s1_hi = 918166372;
+
+    uint64_t s0 = s0_lo | ((uint64_t)s0_hi << 32);
+    uint64_t s1 = s1_lo | ((uint64_t)s1_hi << 32);
+
+    auto [ds0, ds1, gen] = xorshift128plus_exp(s0, s1);
+
+    /*print_js_compat(ds0);
+    printf("\n");
+    print_js_compat(ds1);*/
+
+    uint64_t added = s0 + s1;
+
+    print_js_compat(added);
+
+    double cgen = chrome(s0 + s1);
+
+    std::cout << std::setprecision(20) << "next " << cgen << std::endl;
 
     exit(0);
 }
 
 int main()
 {
-    real_nan_cracker();
+    //real_nan_cracker();
+
+    //js_compat_test();
+
+    debug_js_bugs();
 
     sf::Clock clk;
 
@@ -635,7 +790,7 @@ int main()
 
             std::cout << d << std::endl;
 
-            char c = d * 26 + 'a';
+            //char c = d * 26 + 'a';
 
             std::cout << *(uint64_t*)&d << std::endl;
         }
@@ -644,7 +799,7 @@ int main()
         {
             uint64_t res = xorshift128plus();
 
-            double d = chrome(res);
+            //double d = chrome(res);
 
 
             //bool is_eq = d == check_array[i];
