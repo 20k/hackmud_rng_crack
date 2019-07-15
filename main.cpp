@@ -260,6 +260,74 @@ void print_js_compat(uint64_t in)
 
 #include <iomanip>
 
+void repro()
+{
+    ///3873826803242720369 3475268073314572095
+
+    uint64_t s0 = 3873826803242720369;
+    uint64_t s1 = 3475268073314572095;
+
+    xorshift128(&s0, &s1);
+
+    std::cout << s0 << " " << s1 << std::endl;
+
+    std::cout << "NAN " << nan_value_uint64_t() << std::endl;
+}
+
+void math_random_hooo()
+{
+    srand(time(NULL));
+
+    state_cache cache;
+    cache.set_seeds(rand(), rand());
+
+    int num = 0;
+
+    bool first = false;
+
+    /*while(1 && num < 10)
+    {
+        cache.get_next();
+
+        if(cache.in_bugged_state)
+        {
+            for(int i=0; i < 62 && !first; i++)
+                cache.get_next();
+
+            first = true;
+
+            std::cout << std::setprecision(20) << cache.get_next() << std::endl;
+            num++;
+        }
+    }*/
+
+    while(cache.get_next() != 0.15567932943235995857)
+    {
+
+    }
+
+    int num_found = 0;
+
+    /*for(int i=0; i < 10; i++)
+    {
+        std::cout << std::setprecision(20) << cache.get_next() << std::endl;
+    }*/
+
+    while(cache.get_next() != 0.15567932943235995857)
+    {
+        num_found++;
+    }
+
+    for(int i=0; i < 10; i++)
+    {
+        std::cout << std::setprecision(20) << cache.get_next() << std::endl;
+    }
+
+    std::cout << "range is " << num_found << std::endl;
+
+    exit(0);
+}
+
 void real_nan_cracker()
 {
     //test_nan_cracker();
@@ -354,11 +422,17 @@ void real_nan_cracker()
 
     uint64_t s10 = nan_value_uint64_t();
 
+    std::cout << "NAN VAL " << s10 << std::endl;
+
     ///can't get a full attack working yet, no worries
 
     ///i'm getting boned by the backwards cache thing
     state_cache cache;
-    cache.set_seeds(1233242734, 65745754674567);
+    //cache.set_seeds(1233242734, 65745754674567);
+
+    srand(time(NULL));
+
+    cache.set_seeds(rand(), rand());
 
     double test_against = cache.get_next();
     uint64_t iv_test = iv_chrome(test_against);
@@ -384,11 +458,11 @@ void real_nan_cracker()
 
         if(cache.is_bugged())
         {
-            std::cout << "Buggy AF\n";
+            //std::cout << "Buggy AF\n";
 
             auto [hack_0, hack_1] = cache.get_state();
 
-            std::cout << "s0 " << hack_0 << " s1 " << hack_1 << std::endl;
+            //std::cout << "s0 " << hack_0 << " s1 " << hack_1 << std::endl;
 
             was_bugged = true;
         }
@@ -420,6 +494,9 @@ void real_nan_cracker()
                 std::cout << "b01 " << b01 << " b11 " << b11 << std::endl;
 
                 std::cout << "after " << kk << std::endl;
+
+
+                std::cout << b01 << " hi " << b11 << std::endl;
 
                 //std::cout << "next " << next_value << " test " << test_against << std::endl;
 
@@ -579,11 +656,16 @@ void debug_js_bugs()
 
 int main()
 {
-    //real_nan_cracker();
+    //repro();
+    //exit(0);
+
+    math_random_hooo();
+
+    real_nan_cracker();
 
     //js_compat_test();
 
-    debug_js_bugs();
+    //debug_js_bugs();
 
     sf::Clock clk;
 
